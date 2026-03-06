@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría | Buscador Inteligente</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-audit { background-color: #0d47a1; color: white; padding: 1rem; font-weight: bold; }
+        .card-panel { border: none; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); background: white; }
+        
+        /* Contenedor de Desplazamiento Horizontal */
+        .scroll-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .table-audit {
+            min-width: 1600px; /* Asegura espacio para las 10 columnas */
+            font-size: 0.82rem;
+            margin-bottom: 0;
+        }
+
+        .table-audit th { 
+            background-color: #f8f9fa; 
+            color: #455a64; 
+            text-transform: uppercase; 
+            font-size: 0.75rem; 
+            white-space: nowrap;
+        }
+
+        .col-texto-fijo {
+            max-width: 280px;
+            white-space: normal;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        /* Barra de scroll personalizada */
+        .scroll-container::-webkit-scrollbar { height: 10px; }
+        .scroll-container::-webkit-scrollbar-thumb { background: #0d47a1; border-radius: 10px; }
+        
+        .btn-search { background-color: #0d47a1; color: white; }
+        .btn-search:hover { background-color: #0a3d8d; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="navbar-audit text-center">CONTROL DE REGISTROS - REVISIÓN</div>
+
+<div class="container-fluid mt-4 px-4">
+    <div class="card card-panel p-4 mb-4">
+        <div class="row g-3">
+            <div class="col-md-7">
+                <label class="form-label fw-bold text-muted">Búsqueda Inteligente por Responsable:</label>
+                <input type="text" id="nombreInput" class="form-control form-control-lg" placeholder="Ej: pablo davila lopez...">
+                <small class="text-muted">Puede ingresar nombres o apellidos en cualquier orden.</small>
+            </div>
+            <div class="col-md-5 d-flex align-items-end gap-2">
+                <button onclick="buscar()" class="btn btn-search btn-lg flex-grow-1" id="btnBuscar">CONSULTAR</button>
+                <button onclick="limpiar()" class="btn btn-outline-danger btn-lg">BORRAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loader" class="text-center d-none my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 fw-bold">Filtrando registros municipales...</p>
+    </div>
+
+    <div id="resultadoArea" class="d-none">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-primary p-2" id="txtContador"></span>
+            <span class="text-muted small">Deslice horizontalmente para ver todas las columnas &rarr;</span>
+        </div>
+        
+        <div class="scroll-container">
+            <table class="table table-bordered table-hover table-audit">
+                <thead id="cabecera"></thead>
+                <tbody id="cuerpo"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbwSbav9DXPsDodFftiNNMIdtA_2ddWcwUSORQZgJYY-O1uswpSl6V9rxK_e9zhWppDQXQ/exec";
+
+    function buscar() {
+        const val = document.getElementById('nombreInput').value;
+        if (!val) return;
+
+        document.getElementById('loader').classList.remove('d-none');
+        document.getElementById('resultadoArea').classList.add('d-none');
+        document.getElementById('btnBuscar').disabled = true;
+
+        const script = document.createElement('script');
+        script.src = `${URL_SCRIPT}?nombre=${encodeURIComponent(val)}&callback=mostrar`;
+        document.body.appendChild(script);
+        script.onload = () => document.body.removeChild(script);
+    }
+
+    function mostrar(data) {
+        document.getElementById('loader').classList.add('d-none');
+        document.getElementById('btnBuscar').disabled = false;
+
+        if (data.error) return alert(data.error);
+        if (data.rows.length === 0) return alert("No se encontraron coincidencias para este responsable.");
+
+        const cab = document.getElementById('cabecera');
+        const cue = document.getElementById('cuerpo');
+        document.getElementById('txtContador').innerText = `${data.rows.length} REGISTROS`;
+        
+        cab.innerHTML = ""; cue.innerHTML = "";
+
+        // Generar Cabecera de 10 columnas
+        let hTr = "<tr>";
+        data.headers.forEach(h => hTr += `<th class="p-3">${h}</th>`);
+        cab.innerHTML = hTr + "</tr>";
+
+        // Generar Filas
+        data.rows.forEach(fila => {
+            let dTr = "<tr>";
+            fila.forEach((celda, i) => {
+                let v = celda || "";
+                if(typeof celda === 'string' && celda.includes('T')) {
+                    const d = new Date(celda);
+                    v = !isNaN(d) ? d.toLocaleDateString('es-ES') : v;
+                }
+                
+                // Aplicar estilo compacto a Descripción y Observaciones (columnas 2, 6, 7, 8)
+                let cls = ([2, 6, 7, 8].includes(i)) ? 'class="col-texto-fijo"' : '';
+                dTr += `<td ${cls}>${v}</td>`;
+            });
+            cue.innerHTML += dTr + "</tr>";
+        });
+
+        document.getElementById('resultadoArea').classList.remove('d-none');
+    }
+
+    function limpiar() {
+        document.getElementById('nombreInput').value = "";
+        document.getElementById('resultadoArea').classList.add('d-none');
+        document.getElementById('nombreInput').focus();
+    }
+</script>
+
+</body>
+</html>
